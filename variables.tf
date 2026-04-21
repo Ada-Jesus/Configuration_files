@@ -86,7 +86,7 @@ variable "certificate_arn" {
 variable "alb_deletion_protection" {
   description = "Enable ALB deletion protection"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # ── Auto scaling ──────────────────────────────────────────────────
