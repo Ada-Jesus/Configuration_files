@@ -1,0 +1,13 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.log
+
+# local variables (IMPORTANT)
+terraform.tfvars.terraform/
+.terraform/
+*.tfstate
+*.tfvars
+.terraform/

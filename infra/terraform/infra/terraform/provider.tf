@@ -14,11 +14,11 @@ terraform {
 
   # Remote state (replace with your real bucket)
   backend "s3" {
-    bucket       = "terraform-state-aspnet-api-production"
-    key          = "blue-green/ecs/terraform.tfstate"
-    region       = "us-east-1"
-    encrypt      = true
-    use_lockfile = true
+    bucket         = "REPLACE_WITH_REAL_TF_STATE_BUCKET"
+    key            = "blue-green/ecs/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-state-lock"
   }
 }
 

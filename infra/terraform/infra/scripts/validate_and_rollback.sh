@@ -13,38 +13,27 @@
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-CHECKS="${VALIDATION_CHECKS:-5}"
-DELAY="${VALIDATION_DELAY:-5}"
 URL="http://${ALB_DNS_NAME}/health"
 
-echo "==> Post-switch validation: ${URL}"
-
-sleep 10
-
 rollback() {
-  echo ""
-  echo "!!! AUTO-ROLLBACK TRIGGERED !!!"
-  bash infra/scripts/rollback.sh
+  aws elbv2 modify-listener \
+    --listener-arn "${ALB_LISTENER_ARN}" \
+    --default-actions "Type=forward,TargetGroupArn=${LIVE_TG_ARN}" \
+    --region "${AWS_REGION}"
   exit 1
 }
 
 trap rollback ERR
 
-for i in $(seq 1 "${CHECKS}"); do
-  HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
-    --max-time 10 \
-    "${URL}" || echo "000")
+for i in $(seq 1 5); do
+  CODE=$(curl -sf -o /dev/null -w "%{http_code}" "${URL}" || echo "000")
 
-  echo "  Check ${i}/${CHECKS}: ${HTTP_CODE}"
-
-  if [ "${HTTP_CODE}" != "200" ]; then
-    echo "  FAIL"
+  if [ "${CODE}" != "200" ]; then
     rollback
   fi
 
-  sleep "${DELAY}"
+  sleep 5
 done
 
 trap - ERR
-
 echo "==> Validation passed"

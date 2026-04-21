@@ -90,79 +90,79 @@ resource "aws_cloudwatch_metric_alarm" "high_latency" {
 }
 
 # ── CloudWatch Dashboard ──────────────────────────────────────────
-# resource "aws_cloudwatch_dashboard" "main" {
-#   dashboard_name = "${local.name_prefix}-deployments"
+resource "aws_cloudwatch_dashboard" "main" {
+  dashboard_name = "${local.name_prefix}-deployments"
 
-#   dashboard_body = jsonencode({
-#     widgets = [
-#       {
-#         type   = "metric"
-#         width  = 12
-#         height = 6
-#         properties = {
-#           title = "Request Count & Errors"
-#           metrics = [
-#             ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", aws_lb.main.arn_suffix],
-#             ["AWS/ApplicationELB", "HTTPCode_Target_2XX_Count", "LoadBalancer", aws_lb.main.arn_suffix],
-#             ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", aws_lb.main.arn_suffix]
-#           ]
-#           period = 60
-#           stat   = "Sum"
-#           view   = "timeSeries"
-#         }
-#       },
-#       {
-#         type   = "metric"
-#         width  = 12
-#         height = 6
-#         properties = {
-#           title = "Healthy Hosts (Blue/Green)"
-#           metrics = [
-#             ["AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", aws_lb_target_group.blue.arn_suffix],
-#             ["AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", aws_lb_target_group.green.arn_suffix]
-#           ]
-#           period = 30
-#           stat   = "Average"
-#           view   = "timeSeries"
-#         }
-#       },
-#       {
-#         type   = "metric"
-#         width  = 12
-#         height = 6
-#         properties = {
-#           title = "ECS CPU Utilization"
-#           metrics = [
-#             ["AWS/ECS", "CPUUtilization", "ServiceName", aws_ecs_service.blue.name, "ClusterName", aws_ecs_cluster.main.name],
-#             ["AWS/ECS", "CPUUtilization", "ServiceName", aws_ecs_service.green.name, "ClusterName", aws_ecs_cluster.main.name]
-#           ]
-#           period = 60
-#           stat   = "Average"
-#           view   = "timeSeries"
-#         }
-#       },
-#       {
-#         type   = "metric"
-#         width  = 12
-#         height = 6
-#         properties = {
-#           title = "p95 Response Time"
-#           metrics = [
-#             ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", aws_lb.main.arn_suffix]
-#           ]
-#           period = 60
-#           stat   = "p95"
-#           view   = "timeSeries"
-#         }
-#       }
-#     ]
-#   })
-# }
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title = "Request Count & Errors"
+          metrics = [
+            ["AWS/ApplicationELB", "RequestCount",              "LoadBalancer", aws_lb.main.arn_suffix],
+            ["AWS/ApplicationELB", "HTTPCode_Target_2XX_Count", "LoadBalancer", aws_lb.main.arn_suffix],
+            ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", aws_lb.main.arn_suffix]
+          ]
+          period = 60
+          stat   = "Sum"
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title = "Healthy Hosts (Blue/Green)"
+          metrics = [
+            ["AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", aws_lb_target_group.blue.arn_suffix],
+            ["AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", aws_lb_target_group.green.arn_suffix]
+          ]
+          period = 30
+          stat   = "Average"
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title = "ECS CPU Utilization"
+          metrics = [
+            ["AWS/ECS", "CPUUtilization", "ServiceName", aws_ecs_service.blue.name,  "ClusterName", aws_ecs_cluster.main.name],
+            ["AWS/ECS", "CPUUtilization", "ServiceName", aws_ecs_service.green.name, "ClusterName", aws_ecs_cluster.main.name]
+          ]
+          period = 60
+          stat   = "Average"
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title = "p95 Response Time"
+          metrics = [
+            ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", aws_lb.main.arn_suffix]
+          ]
+          period = 60
+          stat   = "p95"
+          view   = "timeSeries"
+        }
+      }
+    ]
+  })
+}
 
 output "sns_topic_arn" {
   value = aws_sns_topic.deployments.arn
 }
 
-# output "cloudwatch_dashboard_url" {
-#   value = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.main.dashboard_name}"
-# }
+output "cloudwatch_dashboard_url" {
+  value = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.main.dashboard_name}"
+}

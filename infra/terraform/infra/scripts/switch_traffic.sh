@@ -1,25 +1,12 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════
-#  scale_down.sh  –  Scale old (previously live) slot to zero
-#
-#  Called after:
-#    - traffic switch
-#    - validation
-#    - burn-in monitoring
-#
-#  Required env vars:
-#    ECS_CLUSTER
-#    LIVE_SERVICE
-#    AWS_REGION
+#  switch_traffic.sh  –  Atomically move live traffic to new slot
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-echo "==> Scaling down: ${LIVE_SERVICE}"
-
-aws ecs update-service \
-  --cluster "${ECS_CLUSTER}" \
-  --service "${LIVE_SERVICE}" \
-  --desired-count 0 \
+aws elbv2 modify-listener \
+  --listener-arn "${ALB_LISTENER_ARN}" \
+  --default-actions "Type=forward,TargetGroupArn=${DEPLOY_TG_ARN}" \
   --region "${AWS_REGION}"
 
-echo "==> Old slot scaled to 0"
+echo "==> Traffic switched to ${DEPLOY_SERVICE}"

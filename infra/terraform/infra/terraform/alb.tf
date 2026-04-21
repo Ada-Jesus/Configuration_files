@@ -134,28 +134,6 @@ resource "aws_lb_listener" "test" {
   depends_on = [aws_lb.main]
 }
 
-# ── 🔥 FIX: Green Target Group Listener Rule (required for ECS) ────
-resource "aws_lb_listener_rule" "green" {
-  listener_arn = aws_lb_listener.http.arn
-  priority     = 100
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.green.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/green/*"]
-    }
-  }
-
-  depends_on = [
-    aws_lb_listener.http,
-    aws_lb_target_group.green
-  ]
-}
-
 # ── Outputs ───────────────────────────────────────────────────────
 output "alb_dns_name" {
   value = aws_lb.main.dns_name

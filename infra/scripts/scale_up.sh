@@ -11,6 +11,8 @@
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
+echo "==> Scaling up: ${DEPLOY_SERVICE}"
+
 aws ecs update-service \
   --cluster "${ECS_CLUSTER}" \
   --service "${DEPLOY_SERVICE}" \
@@ -20,5 +22,6 @@ aws ecs update-service \
 
 aws ecs wait services-stable \
   --cluster "${ECS_CLUSTER}" \
-  --services "${DEPLOY_SERVICE}" \
-  --region "${AWS_REGION}"
+  --services "${DEPLOY_SERVICE}"
+
+echo "==> Deploy slot stable"

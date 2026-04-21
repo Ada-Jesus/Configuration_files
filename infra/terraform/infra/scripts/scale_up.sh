@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════
-#  scale_down.sh  –  Scale old (previously live) slot to zero
-#
-#  Called after:
-#    - traffic switch
-#    - validation
-#    - burn-in monitoring
+#  scale_up.sh  –  Update deploy slot with new task def & scale up
 #
 #  Required env vars:
 #    ECS_CLUSTER
-#    LIVE_SERVICE
+#    DEPLOY_SERVICE
+#    TASK_DEF_ARN
+#    DESIRED_COUNT
 #    AWS_REGION
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-echo "==> Scaling down: ${LIVE_SERVICE}"
-
 aws ecs update-service \
   --cluster "${ECS_CLUSTER}" \
-  --service "${LIVE_SERVICE}" \
-  --desired-count 0 \
+  --service "${DEPLOY_SERVICE}" \
+  --task-definition "${TASK_DEF_ARN}" \
+  --desired-count "${DESIRED_COUNT}" \
   --region "${AWS_REGION}"
 
-echo "==> Old slot scaled to 0"
+aws ecs wait services-stable \
+  --cluster "${ECS_CLUSTER}" \
+  --services "${DEPLOY_SERVICE}" \
+  --region "${AWS_REGION}"

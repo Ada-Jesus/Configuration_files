@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "==> Fetching task definition for: ${DEPLOY_SERVICE}"
+echo "==> Fetching current task definition for: ${DEPLOY_SERVICE}"
 
 CURRENT_TD=$(aws ecs describe-services \
   --cluster "${ECS_CLUSTER}" \
@@ -10,8 +10,8 @@ CURRENT_TD=$(aws ecs describe-services \
   --output text \
   --region "${AWS_REGION}")
 
-echo "    Current TD: ${CURRENT_TD}"
-echo "    New image:  ${IMAGE_URI}"
+echo "    Current task definition: ${CURRENT_TD}"
+echo "    New image URI:           ${IMAGE_URI}"
 
 NEW_TD=$(aws ecs describe-task-definition \
   --task-definition "${CURRENT_TD}" \
@@ -28,8 +28,8 @@ NEW_TD=$(aws ecs describe-task-definition \
       .compatibilities,
       .registeredAt,
       .registeredBy
-    )
-    | .containerDefinitions[0].image = $IMAGE
+    ) |
+    .containerDefinitions[0].image = $IMAGE
   ' | \
   aws ecs register-task-definition \
     --cli-input-json file:///dev/stdin \
@@ -37,6 +37,4 @@ NEW_TD=$(aws ecs describe-task-definition \
     --output text \
     --region "${AWS_REGION}")
 
-echo "task_def_arn=${NEW_TD}" >> "$GITHUB_OUTPUT"
-
-echo "==> Task registered: ${NEW_TD}"
+echo "task_def_arn=${NEW_TD}" >> "${GITHUB_OUTPUT}"
