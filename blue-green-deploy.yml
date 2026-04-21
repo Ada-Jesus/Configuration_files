@@ -1,0 +1,341 @@
+# ═══════════════════════════════════════════════════════════════════
+#  .github/workflows/blue-green-deploy.yml
+#  Zero-Downtime Blue/Green – ASP.NET Core 8 → ECR → ECS Fargate
+#
+#  Shell scripts live in: infra/scripts/
+#  Terraform lives in:    infra/terraform/
+#
+# ── REQUIRED GITHUB SECRETS ─────────────────────────────────────
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#
+# ── REQUIRED GITHUB VARIABLES (Settings → Variables) ────────────
+#   AWS_REGION          e.g. us-east-1
+#   AWS_ACCOUNT_ID      e.g. 123456789012
+#   ECR_REPOSITORY      e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-production
+#   ECS_CLUSTER         e.g. aspnet-api-production
+#   BLUE_SERVICE        e.g. aspnet-api-production-blue
+#   GREEN_SERVICE       e.g. aspnet-api-production-green
+#   BLUE_TG_ARN         arn:aws:elasticloadbalancing:...
+#   GREEN_TG_ARN        arn:aws:elasticloadbalancing:...
+#   ALB_LISTENER_ARN    arn:aws:elasticloadbalancing:...
+#   TEST_LISTENER_ARN   arn:aws:elasticloadbalancing:...
+#   ALB_DNS_NAME        e.g. aspnet-api-production-alb-123.us-east-1.elb.amazonaws.com
+#   ALB_ARN_SUFFIX      e.g. app/aspnet-api-production-alb/abc123  (from terraform output)
+#   DESIRED_COUNT       e.g. 2
+# ═══════════════════════════════════════════════════════════════════
+
+name: 🚀 Blue/Green Deploy
+
+on:
+  push:
+    branches: [main, 'release/**']
+    paths-ignore: ['**.md', 'docs/**', 'infra/terraform/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_rollback:
+        description: 'Set to true to trigger emergency rollback'
+        required: false
+        default: 'false'
+
+env:
+  IMAGE_TAG: ${{ github.run_number }}
+
+permissions:
+  id-token: write
+  contents: read
+  checks: write
+
+# ───────────────────────────────────────────────────────────────────
+# JOB 1 – Build & Test
+# ───────────────────────────────────────────────────────────────────
+jobs:
+  build-test:
+    name: 🔨 Build & Test
+    runs-on: ubuntu-latest
+    outputs:
+      tests-passed: ${{ steps.test.outcome }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.x'
+
+    - name: Restore packages
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --no-restore -c Release
+
+    - name: Run tests
+      id: test
+      run: |
+        dotnet test --no-build -c Release \
+          --logger "trx;LogFileName=test-results.trx" \
+          --collect:"XPlat Code Coverage" \
+          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+    - name: Publish test results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: .NET Tests
+        path: '**/test-results.trx'
+        reporter: dotnet-trx
+
+    - name: Publish application
+      run: dotnet publish -c Release -o publish --no-build
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: published-app
+        path: publish/
+        retention-days: 7
+
+  # ───────────────────────────────────────────────────────────────
+  # JOB 2 – Docker Build & ECR Push
+  # ───────────────────────────────────────────────────────────────
+  docker-push:
+    name: 🐳 Docker → ECR
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name != 'pull_request'
+    outputs:
+      image-uri: ${{ steps.set-uri.outputs.image-uri }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region:            ${{ vars.AWS_REGION }}
+
+    - name: Login to ECR
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build & push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: |
+          ${{ vars.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          ${{ vars.ECR_REPOSITORY }}:latest
+        labels: |
+          org.opencontainers.image.revision=${{ github.sha }}
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+        cache-from: type=registry,ref=${{ vars.ECR_REPOSITORY }}:buildcache
+        cache-to:   type=registry,ref=${{ vars.ECR_REPOSITORY }}:buildcache,mode=max
+
+    - name: Trivy vulnerability scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ vars.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}'
+        format: sarif
+        output: trivy-results.sarif
+        severity: 'CRITICAL,HIGH'
+      continue-on-error: true
+
+    - name: Set image URI output
+      id: set-uri
+      run: echo "image-uri=${{ vars.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+
+  # ───────────────────────────────────────────────────────────────
+  # JOB 3 – Blue/Green Deployment (calls shell scripts)
+  # ───────────────────────────────────────────────────────────────
+  deploy:
+    name: 🚀 Blue/Green Deploy
+    runs-on: ubuntu-latest
+    needs: docker-push
+    if: github.event_name != 'pull_request'
+    environment:
+      name: production
+      url: http://${{ vars.ALB_DNS_NAME }}
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Make scripts executable
+      run: chmod +x infra/scripts/*.sh
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region:            ${{ vars.AWS_REGION }}
+
+    # ── Step 1: Detect which slot is live ─────────────────────────
+    - name: 🔍 Detect live slot
+      id: detect-slot
+      env:
+        ALB_LISTENER_ARN: ${{ vars.ALB_LISTENER_ARN }}
+        BLUE_TG_ARN:      ${{ vars.BLUE_TG_ARN }}
+        GREEN_TG_ARN:     ${{ vars.GREEN_TG_ARN }}
+        BLUE_SERVICE:     ${{ vars.BLUE_SERVICE }}
+        GREEN_SERVICE:    ${{ vars.GREEN_SERVICE }}
+        AWS_REGION:       ${{ vars.AWS_REGION }}
+      run: bash infra/scripts/detect_slot.sh
+
+    # ── Step 2: Register new task definition ─────────────────────
+    - name: 📋 Register task definition
+      id: register-task
+      env:
+        ECS_CLUSTER:     ${{ vars.ECS_CLUSTER }}
+        DEPLOY_SERVICE:  ${{ steps.detect-slot.outputs.deploy_service }}
+        IMAGE_URI:       ${{ needs.docker-push.outputs.image-uri }}
+        AWS_REGION:      ${{ vars.AWS_REGION }}
+      run: bash infra/scripts/register_task.sh
+
+    # ── Step 3: Scale up deploy slot ─────────────────────────────
+    - name: ⬆️ Scale up deploy slot
+      env:
+        ECS_CLUSTER:    ${{ vars.ECS_CLUSTER }}
+        DEPLOY_SERVICE: ${{ steps.detect-slot.outputs.deploy_service }}
+        TASK_DEF_ARN:   ${{ steps.register-task.outputs.task_def_arn }}
+        DESIRED_COUNT:  ${{ vars.DESIRED_COUNT }}
+        AWS_REGION:     ${{ vars.AWS_REGION }}
+      run: bash infra/scripts/scale_up.sh
+
+    # ── Step 4: Health check via test listener ────────────────────
+    - name: 🏥 Health check (test listener)
+      env:
+        ALB_DNS_NAME:    ${{ vars.ALB_DNS_NAME }}
+        HEALTH_RETRIES:  "20"
+        HEALTH_DELAY:    "10"
+        HEALTH_PATH:     "/health"
+      run: bash infra/scripts/health_check.sh
+
+    # ── Step 5: Smoke tests ───────────────────────────────────────
+    - name: 💨 Smoke tests
+      env:
+        ALB_DNS_NAME: ${{ vars.ALB_DNS_NAME }}
+      run: bash infra/scripts/smoke_test.sh
+
+    # ── Step 6: Switch live traffic ───────────────────────────────
+    - name: 🔀 Switch live traffic
+      env:
+        ALB_LISTENER_ARN: ${{ vars.ALB_LISTENER_ARN }}
+        DEPLOY_TG_ARN:    ${{ steps.detect-slot.outputs.deploy_tg }}
+        DEPLOY_SERVICE:   ${{ steps.detect-slot.outputs.deploy_service }}
+        AWS_REGION:       ${{ vars.AWS_REGION }}
+      run: bash infra/scripts/switch_traffic.sh
+
+    # ── Step 7: Validate post-switch (auto-rollback if it fails) ──
+    - name: ✅ Validate & auto-rollback
+      env:
+        ALB_DNS_NAME:      ${{ vars.ALB_DNS_NAME }}
+        ALB_LISTENER_ARN:  ${{ vars.ALB_LISTENER_ARN }}
+        LIVE_TG_ARN:       ${{ steps.detect-slot.outputs.live_tg }}
+        LIVE_SERVICE:      ${{ steps.detect-slot.outputs.live_service }}
+        DEPLOY_SERVICE:    ${{ steps.detect-slot.outputs.deploy_service }}
+        AWS_REGION:        ${{ vars.AWS_REGION }}
+        VALIDATION_CHECKS: "5"
+        VALIDATION_DELAY:  "5"
+      run: bash infra/scripts/validate_and_rollback.sh
+
+    # ── Step 8: Scale down old slot ───────────────────────────────
+    - name: ⬇️ Scale down old slot
+      if: success()
+      env:
+        ECS_CLUSTER:  ${{ vars.ECS_CLUSTER }}
+        LIVE_SERVICE: ${{ steps.detect-slot.outputs.live_service }}
+        AWS_REGION:   ${{ vars.AWS_REGION }}
+      run: bash infra/scripts/scale_down.sh
+
+    # ── Summary ───────────────────────────────────────────────────
+    - name: 🎉 Write job summary
+      if: success()
+      run: |
+        {
+          echo "### ✅ Deployment Successful"
+          echo ""
+          echo "| Key | Value |"
+          echo "|-----|-------|"
+          echo "| Image | \`${{ needs.docker-push.outputs.image-uri }}\` |"
+          echo "| Active slot | ${{ steps.detect-slot.outputs.deploy_service }} |"
+          echo "| Idle slot | ${{ steps.detect-slot.outputs.live_service }} (scaled to 0) |"
+          echo "| Build | #${{ env.IMAGE_TAG }} |"
+          echo "| Commit | \`${{ github.sha }}\` |"
+          echo "| Deployed by | @${{ github.actor }} |"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+  # ───────────────────────────────────────────────────────────────
+  # JOB 4 – Post-Deploy Burn-In Monitor
+  # ───────────────────────────────────────────────────────────────
+  monitor:
+    name: 📊 Burn-In Monitor
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Make scripts executable
+      run: chmod +x infra/scripts/*.sh
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region:            ${{ vars.AWS_REGION }}
+
+    - name: 📊 5-minute burn-in
+      env:
+        AWS_REGION:       ${{ vars.AWS_REGION }}
+        ALB_ARN_SUFFIX:   ${{ vars.ALB_ARN_SUFFIX }}
+        BURNIN_DURATION:  "300"
+        BURNIN_THRESHOLD: "10"
+        BURNIN_INTERVAL:  "30"
+      run: bash infra/scripts/monitor_burnin.sh
+
+  # ───────────────────────────────────────────────────────────────
+  # JOB 5 – Emergency Rollback (manual trigger only)
+  # ───────────────────────────────────────────────────────────────
+  rollback:
+    name: ⏪ Emergency Rollback
+    runs-on: ubuntu-latest
+    if: github.event.inputs.force_rollback == 'true'
+    environment:
+      name: production
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Make scripts executable
+      run: chmod +x infra/scripts/*.sh
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region:            ${{ vars.AWS_REGION }}
+
+    - name: ⏪ Run rollback
+      env:
+        ECS_CLUSTER:      ${{ vars.ECS_CLUSTER }}
+        ALB_LISTENER_ARN: ${{ vars.ALB_LISTENER_ARN }}
+        ALB_DNS_NAME:     ${{ vars.ALB_DNS_NAME }}
+        AWS_REGION:       ${{ vars.AWS_REGION }}
+        BLUE_SERVICE:     ${{ vars.BLUE_SERVICE }}
+        GREEN_SERVICE:    ${{ vars.GREEN_SERVICE }}
+        BLUE_TG_ARN:      ${{ vars.BLUE_TG_ARN }}
+        GREEN_TG_ARN:     ${{ vars.GREEN_TG_ARN }}
+        DESIRED_COUNT:    ${{ vars.DESIRED_COUNT }}
+      run: bash infra/scripts/rollback.sh
