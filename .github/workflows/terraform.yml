@@ -28,5 +28,5 @@ jobs:
         working-directory: infra/terraform
 
       - name: Terraform Plan
-        run: terraform plan
+        run: terraform plan -var-file="terraform.tfvars"
         working-directory: infra/terraform
