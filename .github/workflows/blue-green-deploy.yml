@@ -74,10 +74,14 @@ jobs:
     - name: Publish application
       run: dotnet publish -c Release -o publish --no-build
 
+
   docker-push:
     name: 🐳 Docker → ECR
     runs-on: ubuntu-latest
     needs: build-test
+
+    outputs:
+      image-uri: ${{ steps.set-uri.outputs.image-uri }}
 
     steps:
     - uses: actions/checkout@v4
@@ -101,6 +105,7 @@ jobs:
     - name: Set image URI
       id: set-uri
       run: echo "image-uri=${{ vars.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+
 
   deploy:
     name: 🚀 Blue/Green Deploy
@@ -186,6 +191,7 @@ jobs:
         AWS_REGION: ${{ vars.AWS_REGION }}
       run: bash infra/scripts/scale_down.sh
 
+
   monitor:
     name: 📊 Burn-In Monitor
     runs-on: ubuntu-latest
@@ -208,6 +214,7 @@ jobs:
         AWS_REGION: ${{ vars.AWS_REGION }}
         ALB_ARN_SUFFIX: ${{ vars.ALB_ARN_SUFFIX }}
       run: bash infra/scripts/monitor_burnin.sh
+
 
   rollback:
     name: ⏪ Emergency Rollback
