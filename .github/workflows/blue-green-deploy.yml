@@ -1,7 +1,6 @@
 # ═══════════════════════════════════════════════════════════════════
 #  .github/workflows/blue-green-deploy.yml
 #  Zero-Downtime Blue/Green – ASP.NET Core 8 → ECR → ECS Fargate
-#
 #  Shell scripts live in: infra/scripts/
 #  Terraform lives in:    infra/terraform/
 #
@@ -246,4 +245,3 @@ jobs:
         GREEN_TG_ARN: ${{ vars.GREEN_TG_ARN }}
         DESIRED_COUNT: ${{ vars.DESIRED_COUNT }}
       run: bash infra/scripts/rollback.sh
-      ### Note: This job can be triggered manually from the Actions tab with "Run workflow" → set "force_rollback" to true
