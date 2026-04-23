@@ -82,7 +82,7 @@ resource "aws_ecs_task_definition" "app" {
   ])
 }
 
-# ── ECS Service – BLUE (always live initially) ───────────────────
+# ── ECS Service – BLUE ────────────────────────────────────────────
 resource "aws_ecs_service" "blue" {
   name            = "${local.name_prefix}-blue"
   cluster         = aws_ecs_cluster.main.id
@@ -93,7 +93,9 @@ resource "aws_ecs_service" "blue" {
   network_configuration {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = false
+
+    # 🔥 FIX: REQUIRED for SSM + ECR + AWS API access
+    assign_public_ip = true
   }
 
   load_balancer {
@@ -120,10 +122,12 @@ resource "aws_ecs_service" "blue" {
 
   depends_on = [aws_lb_listener.http]
 
-  tags = { Slot = "blue" }
+  tags = {
+    Slot = "blue"
+  }
 }
 
-# ── ECS Service – GREEN (idle until deployment) ──────────────────
+# ── ECS Service – GREEN ───────────────────────────────────────────
 resource "aws_ecs_service" "green" {
   name            = "${local.name_prefix}-green"
   cluster         = aws_ecs_cluster.main.id
@@ -134,7 +138,9 @@ resource "aws_ecs_service" "green" {
   network_configuration {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = false
+
+    # 🔥 FIX: REQUIRED for SSM + ECR + AWS API access
+    assign_public_ip = true
   }
 
   load_balancer {
@@ -161,7 +167,9 @@ resource "aws_ecs_service" "green" {
 
   depends_on = [aws_lb_listener.http]
 
-  tags = { Slot = "green" }
+  tags = {
+    Slot = "green"
+  }
 }
 
 # ── Outputs ───────────────────────────────────────────────────────
