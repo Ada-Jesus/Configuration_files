@@ -142,9 +142,11 @@ variable "tags" {
 variable "api_key" {
   type      = string
   sensitive = true
+  default   = "ci-dummy-value"
 }
 
 variable "db_connection_string" {
   type      = string
   sensitive = true
+  default   = "Server=ci;Database=ci;User Id=ci;Password=ci;"
 }
