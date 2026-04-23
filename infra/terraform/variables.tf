@@ -138,3 +138,13 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "api_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "db_connection_string" {
+  type      = string
+  sensitive = true
+}
