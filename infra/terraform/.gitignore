@@ -1,0 +1,12 @@
+# Terraform state
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# logs
+crash.log
+*.log
+
+# local-only variables (DO NOT COMMIT)
+terraform.tfvars
+##

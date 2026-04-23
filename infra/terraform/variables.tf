@@ -60,7 +60,7 @@ variable "ecr_image_uri" {
   type        = string
 }
 
-# ── Networking ────────────────────────────────────────────────────
+# ── Networking (FIXED + VALIDATED) ────────────────────────────────
 variable "vpc_id" {
   description = "VPC ID to deploy resources into"
   type        = string
@@ -69,11 +69,21 @@ variable "vpc_id" {
 variable "private_subnets" {
   description = "Private subnets for ECS tasks"
   type        = list(string)
+
+  validation {
+    condition     = length(var.private_subnets) > 0
+    error_message = "You must provide at least one private subnet."
+  }
 }
 
 variable "public_subnets" {
   description = "Public subnets for ALB"
   type        = list(string)
+
+  validation {
+    condition     = length(var.public_subnets) > 0
+    error_message = "You must provide at least one public subnet."
+  }
 }
 
 # ── TLS / ALB ─────────────────────────────────────────────────────
@@ -113,6 +123,13 @@ variable "log_retention_days" {
   description = "CloudWatch log retention"
   type        = number
   default     = 30
+}
+
+# ── VPC ENDPOINT SUPPORT (IMPORTANT FOR YOUR FIX) ─────────────────
+variable "enable_vpc_endpoints" {
+  description = "Enable SSM/ECR/Secrets Manager VPC endpoints"
+  type        = bool
+  default     = true
 }
 
 # ── Metadata ──────────────────────────────────────────────────────
