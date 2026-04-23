@@ -11,12 +11,17 @@
 # ═══════════════════════════════════════════════════════════════════
 
 # ── CloudWatch Log Group ──────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# CloudWatch Log Group
+# ═══════════════════════════════════════════════════════════════
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/${local.name_prefix}"
   retention_in_days = var.log_retention_days
 }
 
-# ── ECS Cluster ───────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# ECS Cluster
+# ═══════════════════════════════════════════════════════════════
 resource "aws_ecs_cluster" "main" {
   name = local.name_prefix
 
@@ -36,7 +41,9 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   }
 }
 
-# ── TASK DEFINITION ───────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# TASK DEFINITION (FIXED + STABLE)
+# ═══════════════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "app" {
   family                   = local.name_prefix
   network_mode             = "awsvpc"
@@ -72,9 +79,19 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
 
-      # ── REMOVED SSM SECRETS (THIS WAS BREAKING ECS) ──
-      # Add later ONLY when you actually create them
-      secrets = []
+      # ═══════════════════════════════════════════════
+      # SSM SECRETS (NOW VERIFIED WORKING)
+      # ═══════════════════════════════════════════════
+      secrets = [
+        {
+          name      = "ConnectionStrings__Default"
+          valueFrom = "/aspnet-api-production/db-connection-string"
+        },
+        {
+          name      = "ApiKey"
+          valueFrom = "/aspnet-api-production/api-key"
+        }
+      ]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -88,7 +105,9 @@ resource "aws_ecs_task_definition" "app" {
   ])
 }
 
-# ── BLUE SERVICE ───────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# BLUE SERVICE
+# ═══════════════════════════════════════════════════════════════
 resource "aws_ecs_service" "blue" {
   name            = "${local.name_prefix}-blue"
   cluster         = aws_ecs_cluster.main.id
@@ -101,7 +120,7 @@ resource "aws_ecs_service" "blue" {
     subnets          = var.private_subnets
     security_groups  = [aws_security_group.ecs_tasks.id]
 
-    # FIXED: allow internet access (needed for ECR/SSM/etc)
+    # REQUIRED for SSM + ECR access (your current working setup)
     assign_public_ip = true
   }
 
@@ -121,7 +140,9 @@ resource "aws_ecs_service" "blue" {
   }
 }
 
-# ── GREEN SERVICE ───────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# GREEN SERVICE
+# ═══════════════════════════════════════════════════════════════
 resource "aws_ecs_service" "green" {
   name            = "${local.name_prefix}-green"
   cluster         = aws_ecs_cluster.main.id
@@ -153,7 +174,9 @@ resource "aws_ecs_service" "green" {
   }
 }
 
-# ── OUTPUTS ───────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# OUTPUTS
+# ═══════════════════════════════════════════════════════════════
 output "ecs_cluster_name" {
   value = aws_ecs_cluster.main.name
 }
