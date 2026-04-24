@@ -6,19 +6,15 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # ═════════════════════════════════════════════════════
-# CLOUDWATCH LOG GROUP (FIXED)
+# CLOUDWATCH LOG GROUP
 # ═════════════════════════════════════════════════════
 resource "aws_cloudwatch_log_group" "ecs" {
   name              = "/ecs/${local.name_prefix}"
   retention_in_days = 7
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # ═════════════════════════════════════════════════════
-# IAM ROLE
+# IAM EXECUTION ROLE
 # ═════════════════════════════════════════════════════
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${local.name_prefix}-task-exec-role"
@@ -41,7 +37,7 @@ resource "aws_iam_role_policy_attachment" "ecs_exec_attach" {
 }
 
 # ═════════════════════════════════════════════════════
-# TASK DEFINITION
+# TASK DEFINITION (FIXED IMAGE HERE)
 # ═════════════════════════════════════════════════════
 resource "aws_ecs_task_definition" "app" {
   family                   = "${local.name_prefix}"
@@ -55,20 +51,28 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name  = "aspnet-api"
-      image = var.image_uri
+
+      # ✅ FIXED IMAGE (NO VAR ANYMORE)
+      image = "id.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-production:30"
 
       essential = true
 
-      portMappings = [{
-        containerPort = 8080
-        hostPort      = 8080
-        protocol      = "tcp"
-      }]
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
 
       environment = [
         {
           name  = "ASPNETCORE_ENVIRONMENT"
           value = "production"
+        },
+        {
+          name  = "ASPNETCORE_URLS"
+          value = "http://+:8080"
         }
       ]
 
@@ -82,6 +86,28 @@ resource "aws_ecs_task_definition" "app" {
       }
     }
   ])
+}
+
+# ═════════════════════════════════════════════════════
+# SECURITY GROUP
+# ═════════════════════════════════════════════════════
+resource "aws_security_group" "ecs_tasks" {
+  name   = "${local.name_prefix}-ecs-sg"
+  vpc_id = var.vpc_id
+
+  ingress {
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 # ═════════════════════════════════════════════════════

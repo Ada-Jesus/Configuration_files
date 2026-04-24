@@ -160,3 +160,8 @@ variable "container_name" {
   type    = string
   default = "aspnet-api"
 }
+
+variable "private_route_table_ids" {
+  description = "Route table IDs for private subnets (used for S3 gateway endpoint)"
+  type        = list(string)
+}

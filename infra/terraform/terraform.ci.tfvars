@@ -16,3 +16,8 @@ ecr_image_uri = "121023050297.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-product
 image_uri = "121023050297.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-production:latest"
 api_key              = "ci-dummy"
 db_connection_string = "Server=ci;Database=ci;"
+
+private_route_table_ids = [
+  "rtb-xxxxxxxx",
+  "rtb-000638a6e0dbe7bb6"
+]
