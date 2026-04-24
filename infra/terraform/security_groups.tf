@@ -53,11 +53,12 @@ resource "aws_security_group" "vpc_endpoints" {
   name   = "${local.name_prefix}-vpce-sg"
   vpc_id = var.vpc_id
 
+  # Allow HTTPS from ECS tasks
   ingress {
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_tasks.id]
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
