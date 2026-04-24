@@ -1,8 +1,7 @@
 # ═══════════════════════════════════════════════════════════════════
-# security_groups.tf – ALB and ECS security groups (ONLY PLACE)
+# SECURITY GROUPS (SINGLE SOURCE OF TRUTH)
 # ═══════════════════════════════════════════════════════════════════
 
-# ── ALB Security Group ────────────────────────────────────────────
 resource "aws_security_group" "alb" {
   name        = "${local.name_prefix}-alb-sg"
   description = "ALB security group"
@@ -38,35 +37,26 @@ resource "aws_security_group" "alb" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "${local.name_prefix}-alb-sg"
-  }
 }
 
-# ── ECS Task Security Group ───────────────────────────────────────
 resource "aws_security_group" "ecs_tasks" {
   name        = "${local.name_prefix}-ecs-sg"
   description = "ECS tasks security group"
   vpc_id      = var.vpc_id
 
   ingress {
-    description     = "ALB traffic only"
+    description     = "ALB only"
     from_port       = var.container_port
     to_port         = var.container_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
 
-  # 🔥 REQUIRED: outbound internet for ECR pull
+  # 🔥 REQUIRED FOR ECR PULL + INTERNET ACCESS
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${local.name_prefix}-ecs-sg"
   }
 }

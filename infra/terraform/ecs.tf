@@ -6,11 +6,15 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # ═════════════════════════════════════════════════════
-# CLOUDWATCH LOG GROUP
+# CLOUDWATCH LOG GROUP (FIXED)
 # ═════════════════════════════════════════════════════
 resource "aws_cloudwatch_log_group" "ecs" {
   name              = "/ecs/${local.name_prefix}"
   retention_in_days = 7
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # ═════════════════════════════════════════════════════
@@ -65,10 +69,6 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "ASPNETCORE_ENVIRONMENT"
           value = "production"
-        },
-        {
-          name  = "ASPNETCORE_URLS"
-          value = "http://+:8080"
         }
       ]
 
@@ -85,7 +85,7 @@ resource "aws_ecs_task_definition" "app" {
 }
 
 # ═════════════════════════════════════════════════════
-# ECS SERVICE - BLUE
+# BLUE SERVICE
 # ═════════════════════════════════════════════════════
 resource "aws_ecs_service" "blue" {
   name            = "${local.name_prefix}-blue"
@@ -108,7 +108,7 @@ resource "aws_ecs_service" "blue" {
 }
 
 # ═════════════════════════════════════════════════════
-# ECS SERVICE - GREEN
+# GREEN SERVICE
 # ═════════════════════════════════════════════════════
 resource "aws_ecs_service" "green" {
   name            = "${local.name_prefix}-green"

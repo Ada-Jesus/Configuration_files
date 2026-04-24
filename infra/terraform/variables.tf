@@ -155,3 +155,8 @@ variable "image_uri" {
   description = "ECR image URI for ECS task"
   type        = string
 }
+
+variable "container_name" {
+  type    = string
+  default = "aspnet-api"
+}

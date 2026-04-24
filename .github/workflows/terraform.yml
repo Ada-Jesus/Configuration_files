@@ -5,7 +5,9 @@ on:
     branches:
       - main
       - infra
-  workflow_dispatch:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
 
 permissions:
   id-token: write
@@ -26,30 +28,21 @@ jobs:
         working-directory: infra/terraform
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init
-        run: terraform init -reconfigure
+      - run: terraform init -reconfigure
 
-      - name: Terraform Workspace
-        run: terraform workspace select default || terraform workspace new default
+      - run: terraform validate
 
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        run: terraform plan -var-file="terraform.ci.tfvars" -lock-timeout=5m
+      - run: terraform plan -var-file="terraform.ci.tfvars" -lock-timeout=5m
 
 
   terraform-apply:
@@ -62,24 +55,19 @@ jobs:
         working-directory: infra/terraform
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init
-        run: terraform init -reconfigure
+      - run: terraform init -reconfigure
 
-      - name: Terraform Workspace
-        run: terraform workspace select default || terraform workspace new default
+      # 🔥 SAFE SYNC WITH AWS STATE
+      - run: terraform apply -refresh-only -auto-approve
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -var-file="terraform.ci.tfvars" -lock-timeout=5m
+      - run: terraform apply -auto-approve -var-file="terraform.ci.tfvars"
