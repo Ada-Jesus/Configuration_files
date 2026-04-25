@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════
-#  iam.tf  –  ECS task execution role and task role
+# IAM ROLES – ECS TASK + EXECUTION ROLE (FIXED)
 # ═══════════════════════════════════════════════════════════════════
 
 data "aws_iam_policy_document" "ecs_task_assume" {
@@ -13,55 +13,46 @@ data "aws_iam_policy_document" "ecs_task_assume" {
   }
 }
 
-# ── Task Execution Role (ECS agent uses this) ─────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# EXECUTION ROLE (PULL IMAGE + LOGS + SSM SECRETS)
+# ═══════════════════════════════════════════════════════════════════
+
 resource "aws_iam_role" "task_execution" {
   name               = "${local.name_prefix}-task-execution-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
 }
 
+# AWS managed ECS execution policy
 resource "aws_iam_role_policy_attachment" "task_execution_base" {
   role       = aws_iam_role.task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Extra permissions: SSM, Secrets Manager, ECR, CloudWatch Logs
-resource "aws_iam_role_policy" "task_execution_extras" {
-  name = "${local.name_prefix}-task-execution-extras"
+# ═══════════════════════════════════════════════════════════════════
+# 🔥 THIS IS THE PART YOU WERE ASKING "WHERE DOES IT GO?"
+# ═══════════════════════════════════════════════════════════════════
+
+resource "aws_iam_role_policy" "task_execution_ssm" {
+  name = "${local.name_prefix}-ssm-access"
   role = aws_iam_role.task_execution.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "SSMAndSecrets"
+        Sid    = "SSMReadAccess"
         Effect = "Allow"
         Action = [
           "ssm:GetParameter",
-          "ssm:GetParameters",
+          "ssm:GetParameters"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/*"
+      },
+      {
+        Sid    = "SecretsManagerAccess"
+        Effect = "Allow"
+        Action = [
           "secretsmanager:GetSecretValue"
-        ]
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${local.name_prefix}/*",
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${local.name_prefix}/*"
-        ]
-      },
-      {
-        Sid    = "ECRPull"
-        Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage"
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "Logs"
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
         ]
         Resource = "*"
       }
@@ -69,7 +60,10 @@ resource "aws_iam_role_policy" "task_execution_extras" {
   })
 }
 
-# ── Task Role (application runtime permissions) ───────────────────
+# ═══════════════════════════════════════════════════════════════════
+# TASK ROLE (APP RUNTIME PERMISSIONS)
+# ═══════════════════════════════════════════════════════════════════
+
 resource "aws_iam_role" "task" {
   name               = "${local.name_prefix}-task-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
@@ -89,13 +83,15 @@ resource "aws_iam_role_policy" "task_app" {
           "ssm:GetParameter",
           "ssm:GetParameters"
         ]
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${local.name_prefix}/*"
-        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.app_name}/*"
       }
     ]
   })
 }
+
+# ═══════════════════════════════════════════════════════════════════
+# OUTPUTS
+# ═══════════════════════════════════════════════════════════════════
 
 output "task_execution_role_arn" {
   value = aws_iam_role.task_execution.arn

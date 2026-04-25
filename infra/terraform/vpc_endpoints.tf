@@ -1,10 +1,3 @@
-# ═══════════════════════════════════════════════════════════════════
-# vpc_endpoints.tf – FIXED (ECS + ECR + SSM + S3)
-# ═══════════════════════════════════════════════════════════════════
-
-# ─────────────────────────────────────────────────────────────
-# Security Group for VPC Endpoints
-# ─────────────────────────────────────────────────────────────
 resource "aws_vpc_endpoint" "ecr_api" {
   vpc_id            = var.vpc_id
   service_name      = "com.amazonaws.${var.aws_region}.ecr.api"
@@ -45,7 +38,6 @@ resource "aws_vpc_endpoint" "logs" {
   private_dns_enabled = true
 }
 
-# S3 Gateway (FIXED)
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = var.vpc_id
   service_name      = "com.amazonaws.${var.aws_region}.s3"

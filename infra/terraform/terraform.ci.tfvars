@@ -1,23 +1,22 @@
-vpc_id = "vpc-0f686b508e3fef6ea"
+vpc_id = "vpc-06cbf1558da76d76b"
 
 private_subnets = [
-  "subnet-0f15bf0504c9be76f",
-  "subnet-03c63fb99d0e54a5b",
+  "subnet-0173afc61029aeb7f",
+  "subnet-0107c31286e07456f",
 ]
 
 public_subnets = [
-  "subnet-0a901e50d0889a1dc",
-  "subnet-0c3fa5ef5c77e6596",
-  "subnet-0ead1af7a12a686c8"
+  "subnet-066e55fd61ca8101a",
+  "subnet-012becdceb02c01d1",
+  "subnet-0779f7828173980e3"
 ]
 
-ecr_image_uri = "121023050297.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-production:latest"
 
-image_uri = "121023050297.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-production:latest"
-api_key              = "ci-dummy"
-db_connection_string = "Server=ci;Database=ci;"
+ecr_image_uri = "627119595303.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-production:v1"
+
+image_uri = "627119595303.dkr.ecr.us-east-1.amazonaws.com/aspnet-api-production:v1"
+
 
 private_route_table_ids = [
-  "rtb-xxxxxxxx",
-  "rtb-000638a6e0dbe7bb6"
+  "rtb-05681ca94a0bd8a99"
 ]

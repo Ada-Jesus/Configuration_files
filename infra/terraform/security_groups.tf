@@ -1,10 +1,10 @@
 # ═══════════════════════════════════════════════════════════════════
-# SECURITY GROUPS (SINGLE SOURCE OF TRUTH)
+# SECURITY GROUPS (FIXED + CONSISTENT NAMES)
 # ═══════════════════════════════════════════════════════════════════
 
 resource "aws_security_group" "alb" {
-  name        = "${local.name_prefix}-alb-sg"
-  vpc_id      = var.vpc_id
+  name   = "${local.name_prefix}-alb-sg"
+  vpc_id = var.vpc_id
 
   ingress {
     from_port   = 80
@@ -28,14 +28,14 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# ECS tasks SG (ONLY used by ECS)
+# ECS TASK SG (THIS IS WHAT ECS USES)
 resource "aws_security_group" "ecs_tasks" {
   name   = "${local.name_prefix}-ecs-sg"
   vpc_id = var.vpc_id
 
   ingress {
-    from_port       = 8080
-    to_port         = 8080
+    from_port       = var.container_port
+    to_port         = var.container_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -48,12 +48,11 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
-# VPC ENDPOINT SG (FIXED ISOLATED)
+# VPC ENDPOINT SG
 resource "aws_security_group" "vpc_endpoints" {
   name   = "${local.name_prefix}-vpce-sg"
   vpc_id = var.vpc_id
 
-  # Allow HTTPS from ECS tasks
   ingress {
     from_port   = 443
     to_port     = 443

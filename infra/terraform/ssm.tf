@@ -1,19 +1,17 @@
 # ═══════════════════════════════════════════════════════════════════
-# SSM PARAMETERS – REQUIRED FOR ECS SECRETS
+# SSM PARAMETERS – CLEAN VERSION
 # ═══════════════════════════════════════════════════════════════════
 
 resource "aws_ssm_parameter" "api_key" {
-  name  = "/aspnet-api-production/api-key"
-  type  = "SecureString"
-  value = var.api_key
-
+  name      = "/${var.app_name}/${var.environment}/api-key"
+  type      = "SecureString"
+  value     = "REPLACE_VIA_CI"
   overwrite = true
 }
 
 resource "aws_ssm_parameter" "db_connection" {
-  name  = "/aspnet-api-production/db-connection-string"
-  type  = "SecureString"
-  value = var.db_connection_string
-
+  name      = "/${var.app_name}/${var.environment}/db-connection-string"
+  type      = "SecureString"
+  value     = "REPLACE_VIA_CI"
   overwrite = true
 }
